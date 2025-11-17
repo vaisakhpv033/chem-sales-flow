@@ -9,6 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
 type Product = {
   id: string;
@@ -20,6 +24,47 @@ type Product = {
   monthlySales: number;
   trend: number;
 };
+
+const productFormSchema = z.object({
+  name: z.string()
+    .min(1, "Product name is required")
+    .max(100, "Product name must be less than 100 characters")
+    .regex(/^[a-zA-Z0-9\s\-]+$/, "Product name can only contain letters, numbers, spaces, and hyphens"),
+  category: z.string()
+    .min(1, "Category is required")
+    .max(50, "Category must be less than 50 characters")
+    .regex(/^[a-zA-Z\s]+$/, "Category can only contain letters and spaces"),
+  sku: z.string()
+    .min(1, "SKU is required")
+    .regex(/^CHM-[A-Z0-9]{3,10}$/, "SKU must follow format: CHM-XXX (e.g., CHM-A301)")
+    .max(20, "SKU must be less than 20 characters"),
+  unitPrice: z.string()
+    .refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, {
+      message: "Unit price must be a positive number greater than 0"
+    })
+    .refine((val) => parseFloat(val) <= 100000, {
+      message: "Unit price must be less than $100,000"
+    }),
+  stock: z.enum(["In Stock", "Low Stock", "Out of Stock"], {
+    required_error: "Stock status is required"
+  }),
+  monthlySales: z.string()
+    .refine((val) => !isNaN(parseInt(val)) && parseInt(val) >= 0, {
+      message: "Monthly sales must be a non-negative number"
+    })
+    .refine((val) => parseInt(val) <= 1000000, {
+      message: "Monthly sales must be less than 1,000,000 units"
+    }),
+  trend: z.string()
+    .refine((val) => !isNaN(parseFloat(val)), {
+      message: "Trend must be a valid number"
+    })
+    .refine((val) => parseFloat(val) >= -100 && parseFloat(val) <= 100, {
+      message: "Trend must be between -100% and +100%"
+    })
+});
+
+type ProductFormValues = z.infer<typeof productFormSchema>;
 
 const initialProducts: Product[] = [
   {
@@ -85,16 +130,20 @@ const Products = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
-  const [formData, setFormData] = useState({
-    name: "",
-    category: "",
-    sku: "",
-    unitPrice: "",
-    stock: "In Stock",
-    monthlySales: "",
-    trend: "",
-  });
   const { toast } = useToast();
+
+  const form = useForm<ProductFormValues>({
+    resolver: zodResolver(productFormSchema),
+    defaultValues: {
+      name: "",
+      category: "",
+      sku: "",
+      unitPrice: "",
+      stock: "In Stock",
+      monthlySales: "",
+      trend: "",
+    },
+  });
 
   const categories = useMemo(() => {
     const uniqueCategories = Array.from(new Set(products.map(p => p.category)));
@@ -116,18 +165,18 @@ const Products = () => {
   const handleOpenDialog = (product?: Product) => {
     if (product) {
       setEditingProduct(product);
-      setFormData({
+      form.reset({
         name: product.name,
         category: product.category,
         sku: product.sku,
         unitPrice: product.unitPrice.toString(),
-        stock: product.stock,
+        stock: product.stock as "In Stock" | "Low Stock" | "Out of Stock",
         monthlySales: product.monthlySales.toString(),
         trend: product.trend.toString(),
       });
     } else {
       setEditingProduct(null);
-      setFormData({
+      form.reset({
         name: "",
         category: "",
         sku: "",
@@ -140,18 +189,16 @@ const Products = () => {
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmit = (values: ProductFormValues) => {
     const newProduct: Product = {
       id: editingProduct?.id || Date.now().toString(),
-      name: formData.name,
-      category: formData.category,
-      sku: formData.sku,
-      unitPrice: parseFloat(formData.unitPrice),
-      stock: formData.stock,
-      monthlySales: parseInt(formData.monthlySales),
-      trend: parseFloat(formData.trend),
+      name: values.name,
+      category: values.category,
+      sku: values.sku,
+      unitPrice: parseFloat(values.unitPrice),
+      stock: values.stock,
+      monthlySales: parseInt(values.monthlySales),
+      trend: parseFloat(values.trend),
     };
 
     if (editingProduct) {
@@ -386,100 +433,135 @@ const Products = () => {
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
-          <form onSubmit={handleSubmit}>
-            <DialogHeader>
-              <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
-              <DialogDescription>
-                {editingProduct ? "Update product details below." : "Enter product details below."}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Product Name</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="category">Category</Label>
-                <Input
-                  id="category"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="sku">SKU</Label>
-                <Input
-                  id="sku"
-                  value={formData.sku}
-                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                  required
-                />
-              </div>
+          <DialogHeader>
+            <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
+            <DialogDescription>
+              {editingProduct ? "Update product details below." : "Enter product details below."}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Chemical A-301" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Industrial Solvents" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="sku"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>SKU</FormLabel>
+                    <FormControl>
+                      <Input placeholder="CHM-A301" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
               <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="unitPrice">Unit Price ($)</Label>
-                  <Input
-                    id="unitPrice"
-                    type="number"
-                    step="0.01"
-                    value={formData.unitPrice}
-                    onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="stock">Stock Status</Label>
-                  <Select value={formData.stock} onValueChange={(value) => setFormData({ ...formData, stock: value })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="In Stock">In Stock</SelectItem>
-                      <SelectItem value="Low Stock">Low Stock</SelectItem>
-                      <SelectItem value="Out of Stock">Out of Stock</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <FormField
+                  control={form.control}
+                  name="unitPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unit Price ($)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" placeholder="450" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="stock"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stock Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="In Stock">In Stock</SelectItem>
+                          <SelectItem value="Low Stock">Low Stock</SelectItem>
+                          <SelectItem value="Out of Stock">Out of Stock</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
+              
               <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="monthlySales">Monthly Sales (units)</Label>
-                  <Input
-                    id="monthlySales"
-                    type="number"
-                    value={formData.monthlySales}
-                    onChange={(e) => setFormData({ ...formData, monthlySales: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="trend">Trend (%)</Label>
-                  <Input
-                    id="trend"
-                    type="number"
-                    step="0.1"
-                    value={formData.trend}
-                    onChange={(e) => setFormData({ ...formData, trend: e.target.value })}
-                    required
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="monthlySales"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Monthly Sales (units)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="2450" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="trend"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Trend (%)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.1" placeholder="12.5" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {editingProduct ? "Update Product" : "Add Product"}
-              </Button>
-            </DialogFooter>
-          </form>
+              
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {editingProduct ? "Update Product" : "Add Product"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
