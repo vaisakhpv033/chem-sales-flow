@@ -242,6 +242,33 @@ const Products = () => {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Product Summary</CardTitle>
+          <CardDescription>Overview of product performance</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Total Products</div>
+              <div className="text-3xl font-bold">{products.length}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Average Price</div>
+              <div className="text-3xl font-bold">
+                ${Math.round(products.reduce((sum, p) => sum + p.unitPrice, 0) / products.length)}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Total Monthly Sales</div>
+              <div className="text-3xl font-bold">
+                {products.reduce((sum, p) => sum + p.monthlySales, 0).toLocaleString()} units
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {filteredProducts.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
@@ -356,33 +383,6 @@ const Products = () => {
           )}
         </>
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Product Summary</CardTitle>
-          <CardDescription>Overview of product performance</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Total Products</div>
-              <div className="text-3xl font-bold">{products.length}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Average Price</div>
-              <div className="text-3xl font-bold">
-                ${Math.round(products.reduce((sum, p) => sum + p.unitPrice, 0) / products.length)}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Total Monthly Sales</div>
-              <div className="text-3xl font-bold">
-                {products.reduce((sum, p) => sum + p.monthlySales, 0).toLocaleString()} units
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
