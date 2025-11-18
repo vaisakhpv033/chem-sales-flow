@@ -291,13 +291,14 @@ const Products = () => {
 
   const handleCategoryToggle = (category: string) => {
     if (category === "all") {
-      setExportCategories(["all"]);
+      setExportCategories(prev => 
+        prev.includes("all") ? [] : ["all"]
+      );
     } else {
       setExportCategories(prev => {
         const filtered = prev.filter(c => c !== "all");
         if (filtered.includes(category)) {
-          const newCategories = filtered.filter(c => c !== category);
-          return newCategories.length === 0 ? ["all"] : newCategories;
+          return filtered.filter(c => c !== category);
         } else {
           return [...filtered, category];
         }
