@@ -2,12 +2,13 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Package, TrendingUp, AlertCircle, Plus, Pencil, Trash2, Search, Filter } from "lucide-react";
+import { Package, TrendingUp, AlertCircle, Plus, Pencil, Trash2, Search, Filter, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -130,6 +131,8 @@ const Products = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportCategories, setExportCategories] = useState<string[]>(["all"]);
   const { toast } = useToast();
 
   const form = useForm<ProductFormValues>({
@@ -234,6 +237,74 @@ const Products = () => {
     setDisplayCount(prev => prev + ITEMS_PER_PAGE);
   };
 
+  const handleExport = () => {
+    // Filter products based on selected categories
+    const exportData = exportCategories.includes("all")
+      ? products
+      : products.filter(product => exportCategories.includes(product.category));
+
+    if (exportData.length === 0) {
+      toast({
+        title: "No data",
+        description: "No products found for the selected categories",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Create CSV content
+    const headers = ["Name", "Category", "SKU", "Unit Price", "Stock", "Monthly Sales", "Trend"];
+    const csvContent = [
+      headers.join(","),
+      ...exportData.map((product) =>
+        [
+          `"${product.name}"`,
+          `"${product.category}"`,
+          product.sku,
+          product.unitPrice,
+          `"${product.stock}"`,
+          product.monthlySales,
+          product.trend,
+        ].join(",")
+      ),
+    ].join("\n");
+
+    // Create and download CSV file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    const categoryLabel = exportCategories.includes("all") ? "all-categories" : exportCategories.join("-");
+    link.setAttribute("download", `products-${categoryLabel}-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Success",
+      description: `Exported ${exportData.length} products`,
+    });
+
+    setIsExportDialogOpen(false);
+  };
+
+  const handleCategoryToggle = (category: string) => {
+    if (category === "all") {
+      setExportCategories(["all"]);
+    } else {
+      setExportCategories(prev => {
+        const filtered = prev.filter(c => c !== "all");
+        if (filtered.includes(category)) {
+          const newCategories = filtered.filter(c => c !== category);
+          return newCategories.length === 0 ? ["all"] : newCategories;
+        } else {
+          return [...filtered, category];
+        }
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -241,10 +312,16 @@ const Products = () => {
           <h2 className="text-3xl font-bold text-foreground">Products</h2>
           <p className="text-muted-foreground mt-1">Manage your product catalog</p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Product
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsExportDialogOpen(true)}>
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Product
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -581,6 +658,72 @@ const Products = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Export Dialog */}
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Export Products</DialogTitle>
+            <DialogDescription>
+              Select categories to export product data as CSV
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-3">
+              <label className="text-sm font-medium">Select Categories</label>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="all"
+                    checked={exportCategories.includes("all")}
+                    onCheckedChange={() => handleCategoryToggle("all")}
+                  />
+                  <label
+                    htmlFor="all"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    All Categories
+                  </label>
+                </div>
+                {categories.filter(c => c !== "all").map((category) => (
+                  <div key={category} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={category}
+                      checked={exportCategories.includes(category) || exportCategories.includes("all")}
+                      onCheckedChange={() => handleCategoryToggle(category)}
+                      disabled={exportCategories.includes("all")}
+                    />
+                    <label
+                      htmlFor={category}
+                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {category}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="text-sm text-muted-foreground">
+              {exportCategories.includes("all") 
+                ? `${products.length} products will be exported`
+                : `${products.filter(p => exportCategories.includes(p.category)).length} products will be exported`
+              }
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleExport}>
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
